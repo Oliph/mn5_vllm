@@ -1,0 +1,3 @@
+model_path: /gpfs/projects/bsc02/llm_models/huggingface_models/
+model_name: "Mistral-Small-24B-Instruct-2501"
+port: 8000
