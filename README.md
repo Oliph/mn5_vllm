@@ -19,6 +19,7 @@ Ensure you have Python installed along with the necessary dependencies listed in
 module purge && module load mkl intel python/3.12
 # Important to avoid the virtual env using global packages
 unset PYTHONPATH
+python -m venv venv_mn5
 source venv_mn5/bin/activate
 pip install -r requirements.txt
 ```
