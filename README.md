@@ -93,9 +93,10 @@ python ./vllm_server/run_vllm.py  --cuda-devices 0,1 --config config.yaml
 ```
 To run the model loading on several GPUs (should be automatic but sometimes need to be specified)
 
-````bash
+```bash
 python ./vllm_server/run_vllm.py  --tensor-parallel-size 4 --config config.yaml
 ```
+
 ### YAML Configuration Format
 
 Your `config.yaml` file should look something like this:
