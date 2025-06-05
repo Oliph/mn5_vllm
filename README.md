@@ -32,10 +32,13 @@ Use the provided Bash script to download models from Hugging Face. By default, m
 
 To download a model, run the script with the model URL obtained on HuggingFace:
 ```bash
+cd /gpfs/project/bsc02/sla/llm_models/huggingface_models
 bash ./scripts/hf_dl.sh <model_name>
 ```
 For example:
 ```bash
+cd /gpfs/project/bsc02/sla/llm_models/huggingface_models
+
 bash ./scripts/hf_dl.sh meta-llama/Llama-2-7b-hf
 ```
 
@@ -86,9 +89,13 @@ python ./vllm_server/run_vllm.py --config config.yaml --port 8081 --model-path /
 Specify CUDA devices via CLI (overrides config file if set):
 
 ```bash
-python ./vllm_server/run_vllm.py --config config.yaml --cuda-devices 0,1
+python ./vllm_server/run_vllm.py  --cuda-devices 0,1 --config config.yaml
 ```
+To run the model loading on several GPUs (should be automatic but sometimes need to be specified)
 
+````bash
+python ./vllm_server/run_vllm.py  --tensor-parallel-size 4 --config config.yaml
+```
 ### YAML Configuration Format
 
 Your `config.yaml` file should look something like this:
