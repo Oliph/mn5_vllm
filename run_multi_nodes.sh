@@ -18,7 +18,19 @@ unset PYTHONPATH
 source venv_mn5/bin/activate
 
 # ----------------------------
-# 1. Get hostnames and define head/worker nodes
+# 1. Parse optional --address=ip:port for external Ray head
+# ----------------------------
+external_address=""
+for arg in "$@"; do
+  if [[ $arg == --address=* ]]; then
+    external_address="${arg#--address=}"
+    # Remove it from $@ so it doesn't go into launch_vllm.sh
+    set -- "${@/$arg/}"
+  fi
+done
+
+# ----------------------------
+# 2. Get hostnames and define head/worker nodes
 # ----------------------------
 nodes=($(scontrol show hostnames "$SLURM_JOB_NODELIST"))
 head_node=${nodes[0]}
@@ -28,17 +40,13 @@ echo "Head node: $head_node"
 echo "Worker nodes: ${worker_nodes[*]}"
 
 # ----------------------------
-# 2. Get internal IP address of head node (used for Ray communication)
+# 3. Define port and get GPUs
 # ----------------------------
-# head_ip=$(srun --nodes=1 --ntasks=1 -w "$head_node" hostname --ip-address | awk '{print $1}')
 port=6379
 
-# ----------------------------
-# 3. Calculate total GPUs
-# ----------------------------
 ntasks=${SLURM_NTASKS:-1}
 ntasks_per_node=${SLURM_NTASKS_PER_NODE:-0}
-gres_line=${SLURM_JOB_GRES:-$(scontrol show job "$SLURM_JOB_ID" | grep -oP 'Gres=\K[^ ]*')}
+gres_line=$(scontrol show job "$SLURM_JOB_ID" | grep -i "Gres=" | awk -F'Gres=' '{print $2}' | awk '{print $1}')
 gpus_per_task=$(echo "$gres_line" | grep -oP 'gpu:\K[0-9]+' || echo 0)
 
 if [[ "$ntasks_per_node" -gt 0 ]]; then
@@ -55,30 +63,44 @@ echo "  GPUs per task  : $gpus_per_task"
 echo "  Total GPUs     : $total_gpus"
 
 # ----------------------------
-# 4. Start Ray Head Node
+# 4. Start Ray head (if not using external address)
 # ----------------------------
-echo "Starting Ray head on $head_node ($head_node:$port)"
-srun --nodes=1 --ntasks=1 -w "$head_node" \
-  ray start --head --node-ip-address="$head_node" --port="$port" &
+if [[ -z "$external_address" ]]; then
+  head_ip=$(srun --nodes=1 --ntasks=1 -w "$head_node" hostname --ip-address | awk '{print $1}')
+  echo "Starting Ray head on $head_node (IP: $head_ip:$port)"
+
+  srun --nodes=1 --ntasks=1 -w "$head_node" \
+    ray start --head &
+
+  ray_address="$head_ip:$port"
+else
+  echo "Using external Ray head at $external_address"
+  ray_address="$external_address"
+fi
 
 sleep 10
 
 # ----------------------------
-# 5. Start Ray Worker Nodes
+# 5. Start Ray workers
 # ----------------------------
 for node in "${worker_nodes[@]}"; do
   worker_ip=$(srun --nodes=1 --ntasks=1 -w "$node" hostname --ip-address | awk '{print $1}')
-  echo "Starting Ray worker on $node ($worker_ip)"
+  echo "Starting Ray worker on $node (IP: $worker_ip)"
+
   srun --nodes=1 --ntasks=1 -w "$node" \
-    ray start --address="$head_node:$port" --node-ip-address="$worker_ip" &
+    ray start --address="$ray_address" &
 done
 
 wait
 
 # ----------------------------
-# 6. Launch Workload on Head Node
+# 6. Launch Workload (only on head node if no external address)
 # ----------------------------
-echo "All Ray nodes started."
-echo "Launching vLLM workload on head node"
+if [[ -z "$external_address" ]]; then
+  echo "All Ray nodes started."
+  echo "Launching vLLM workload on head node"
 
-srun --nodes=1 --ntasks=1 -w "$head_node" ./launch_vllm.sh "$total_gpus" "$@"
+  srun --nodes=1 --ntasks=1 -w "$head_node" ./launch_vllm.sh "$total_gpus" "$@"
+else
+  echo "Ray workers connected to external head. No workload launched."
+fi
