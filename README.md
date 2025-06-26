@@ -12,6 +12,10 @@ This script is designed to launch a vLLM server with configurations loaded from 
 
 ## Installation
 
+```
+cd  /gpfs/projects/bsc02/sla_projects/vllm_server
+```
+
 Ensure you have Python installed along with the necessary dependencies listed in the `requirements.txt` file:
 
 ```bash
@@ -26,23 +30,23 @@ pip install -r requirements.txt
 
 ### Downloading Models from Hugging Face
 
-Use the provided Bash script to download models from Hugging Face. By default, models will be saved to `/gpfs/project/bsc02/sla/llm_models/huggingface_models`.
+Use the provided Bash script to download models from Hugging Face. By default, models will be saved to `/gpfs/projects/bsc02/sla/llm_models/huggingface_models`.
 
 #### Download Script
 
 To download a model, run the script with the model URL obtained on HuggingFace:
 ```bash
-cd /gpfs/project/bsc02/sla/llm_models/huggingface_models
+cd /gpfs/projects/bsc02/sla/llm_models/huggingface_models
 bash ./scripts/hf_dl.sh <model_name>
 ```
 For example:
 ```bash
-cd /gpfs/project/bsc02/sla/llm_models/huggingface_models
+cd /gpfs/projects/bsc02/sla/llm_models/huggingface_models
 
 bash ./scripts/hf_dl.sh meta-llama/Llama-2-7b-hf
 ```
 
-This will download the model to `/gpfs/project/bsc02/sla/llm_models/huggingface_models/Llama-2-7b-hf`.
+This will download the model to `/gpfs/projects/bsc02/sla/llm_models/huggingface_models/Llama-2-7b-hf`.
 It is better to keep that folder common to all project to avoid downloading same models twice as they are very large.
 
 #### Hugging Face Authentication
@@ -67,7 +71,15 @@ Example using 1hour node with 4 GPUs:
 salloc -A bsc02 -t 01:00:00 -q acc_interactive -n 1 -c 80 --gres=gpu:4
 ```
 
+Or it is possible to run directly with sbatch, which will run the model in one node
+
+```bash
+sbatch -A bsc02 -t 00-01:00:00 -q acc_bscls run_single_nodes.sh --config config/qwen3_32B.yaml 
+```
+
+
 ### Running the Script
+
 
 Basic usage with a configuration file:
 
@@ -134,13 +146,13 @@ bash script/bsc_ssh_tunnel.sh <jump_host> <target_host> <ports>
 Forward a single port:
 
 ```bash
-bash ./scripts/bsc_ssh_tunnel.sh mn5-acc-4 as05r1b08 8000
+bash ./scripts/bsc_ssh_tunnel.sh $USER@$alogin1.es as05r1b08 8000
 ```
 
 Forward multiple ports:
 
 ```bash
-bash ./scripts/bsc_ssh_tunnel.sh mn5-acc-4 as05r1b08 8000,9000,10000
+bash ./scripts/bsc_ssh_tunnel.sh $USER@$alogin1.es as05r1b08 8000,9000,10000
 ```
 
 Forward a range of ports:
@@ -157,7 +169,7 @@ You can try with the following curl command to see if it works:
 curl http://localhost:8000/v1/completions \
     -H "Content-Type: application/json" \
     -d '{
-        "model": "/gpfs/project/bsc02/sla/llm_models/huggingface_models/Llama-2-7b-hf`",
+        "model": "/gpfs/project/bsc02/sla/llm_models/huggingface_models/$MODEL_NAME",
         "prompt": "Barcelona is a",
         "max_tokens": 7,
         "temperature": 0
