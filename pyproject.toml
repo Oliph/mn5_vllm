@@ -1,3 +1,27 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+packages = ["vllm_launcher"]
+
+[project]
+name = "vllm-marenostrum"
+version = "0.1.2.1"
+description = "Reusable vLLM server launcher for SLURM/HPC"
+readme = "README.md"
+authors = [
+    { name = "Olivier Philippe", email = "olivier.philippe@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "PyYAML",
+    "vllm",
+    "ray"
+]
+
+[project.scripts]
+vllm-launch = "vllm_launcher.cli:main"
+[project.urls]
+Homepage = "https://gitlab.bsc.es/social-link-analytic/vllm_marenostrum"

@@ -6,9 +6,16 @@ import yaml
 import argparse
 import os
 
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler("vllm_launcher.log"),
+        logging.StreamHandler()
+    ]
+)
 
+logger = logging.getLogger(__name__)
 
 def load_config(config_path):
     """Loads a YAML configuration file."""

@@ -1,6 +1,5 @@
 #!/bin/bash
 #SBATCH --job-name=vllm_single
-#SBATCH --ntasks-per-node=1
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=80
 #SBATCH --gres=gpu:4
@@ -9,15 +8,26 @@
 #SBATCH --error=logs/slurm_single_%j.err
 
 # ----------------------------
-# 0. Load environment and enter project directory
+# Load environment and activate venv
 # ----------------------------
-cd /gpfs/projects/bsc02/sla_projects/vllm_server
-gpus_per_task=$(scontrol show job "$SLURM_JOB_ID" | grep -oP 'gres/gpu=\K[0-9]+' | head -n1)
+cd /gpfs/projects/bsc02/sla_projects/vllm_server || {
+  echo "[VLLM] ERROR: Failed to cd into project directory"
+  exit 1
+}
 
-echo "Detected configuration:"
-echo "  GRES line      : $gres_line"
-echo "  Total GPUs     : $gpus_per_task"
+module purge && module load mkl intel python/3.12
+unset PYTHONPATH
+source venv_mn5/bin/activate
 
-echo "Launching vLLM workload on head node"
+# ----------------------------
+# Detect GPU count
+# ----------------------------
+gpus=$(scontrol show job "$SLURM_JOB_ID" | grep -oP 'gres/gpu=\K[0-9]+' | head -n1)
+gpus=${gpus:-1} # fallback to 1 if detection fails
 
-srun ./launch_vllm.sh "$gpus_per_task" 1 "$@"
+echo "[VLLM] Detected $gpus GPU(s) for launch"
+
+# ----------------------------
+# Run vLLM launcher
+# ----------------------------
+vllm-launch --tensor-parallel-size "$gpus" "$@"
