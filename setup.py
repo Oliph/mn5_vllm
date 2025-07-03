@@ -7,7 +7,7 @@ setup(
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     author="Olivier Philippe",
-    author_email="olivier.philippe@gmail.com"
+    author_email="olivier.philippe@gmail.com",
     packages=find_packages(),
     install_requires=[
         "PyYAML",
