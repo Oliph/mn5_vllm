@@ -1,181 +1,180 @@
-# vLLM Server Launcher
 
-This script is designed to launch a vLLM server with configurations loaded from a YAML file, while allowing command-line arguments to override configuration values dynamically. It also supports setting CUDA devices for GPU utilization.
+# vLLM Server Launcher for MareNostrum
+
+Reusable launcher for deploying [vLLM](https://github.com/vllm-project/vllm) servers on SLURM-based HPC clusters like MareNostrum (BSC). Supports YAML configuration, CLI overrides, SLURM integration, GPU affinity, and remote access via OpenAI-compatible API.
 
 ## Features
 
-- Loads configuration from a YAML file.
-- Allows command-line arguments to override YAML config values.
-- Supports setting `CUDA_VISIBLE_DEVICES` via CLI or config file.
-- Extracts valid vLLM arguments dynamically from `vllm serve --help`.
-- Logs configuration details for debugging.
+- Launch vLLM with YAML-based configs
+- CLI arguments override YAML settings
+- GPU device selection via `CUDA_VISIBLE_DEVICES`
+- Extracts valid `vllm serve` args dynamically
+- Usable in SBATCH scripts or directly from Python
+- Supports remote OpenAI API access via SSH tunneling
 
 ## Installation
 
-```
-cd  /gpfs/projects/bsc02/sla_projects/vllm_server
-```
-
-Ensure you have Python installed along with the necessary dependencies listed in the `requirements.txt` file:
+### Option 1: From local environment
 
 ```bash
-# Load appropriate modules and activate virtualenv
 module purge && module load mkl intel python/3.12
-# Important to avoid the virtual env using global packages
-unset PYTHONPATH
+unset PYTHONPATH  # Avoid global packages
 python -m venv venv_mn5
 source venv_mn5/bin/activate
 pip install -r requirements.txt
 ```
 
-### Downloading Models from Hugging Face
+### Option 2: As Python package (recommended)
 
-Use the provided Bash script to download models from Hugging Face. By default, models will be saved to `/gpfs/projects/bsc02/sla/llm_models/huggingface_models`.
+To make the launcher reusable across projects:
 
-#### Download Script
-
-To download a model, run the script with the model URL obtained on HuggingFace:
 ```bash
-cd /gpfs/projects/bsc02/sla/llm_models/huggingface_models
-bash ./scripts/hf_dl.sh <model_name>
-```
-For example:
-```bash
-cd /gpfs/projects/bsc02/sla/llm_models/huggingface_models
-
-bash ./scripts/hf_dl.sh meta-llama/Llama-2-7b-hf
+git clone https://gitlab.bsc.es/social-link-analytic/vllm_marenostrum.git
+cd vllm-marenostrum
+pip install -e .
 ```
 
-This will download the model to `/gpfs/projects/bsc02/sla/llm_models/huggingface_models/Llama-2-7b-hf`.
+This installs the CLI tool:
+
+```bash
+vllm-launch --config config/mistral_small_24B-Instruct.yaml --tensor-parallel-size 2
+```
+
+## Downloading Hugging Face Models
+
+Models are saved to a shared folder to avoid re-downloading.
+
+```bash
+cd $MODEL_FOLDER
+bash ./script/hf_dl.sh mistralai/Mistral-Small-24B-Instruct-2501
+
+This will download the model to `$MODEL_FOLDER/Mistral-Small-24B-Instruct-2501`.
 It is better to keep that folder common to all project to avoid downloading same models twice as they are very large.
 
-#### Hugging Face Authentication
-
-Some models require authentication via a Hugging Face token. You can generate a token from your [Hugging Face account settings](https://huggingface.co/settings/tokens). Once generated, set the token in your environment:
-```bash
-export HUGGINGFACE_HUB_TOKEN=your_token_here
-```
-Alternatively, you can log in using the CLI:
+### Hugging Face Authentication
 
 ```bash
+# Option 1: via env var
+export HUGGINGFACE_HUB_TOKEN=your_token
+
+# Option 2: via CLI
 huggingface-cli login
+```
+
+## Configuration File Example
+
+Your config file should look like this:
+
+```yaml
+model_path: "/gpfs/projects/$USER/sla/llm_models/huggingface_models"
+model_name: "Mistral-Small-24B-Instruct-2501"
+port: 8000
+tensor_parallel_size: 4
+cuda_devices: "0,1,2,3"
 ```
 
 ## Usage
 
-### Running a node
-This is being tested with interactive session on the ACC-4. It should work on bsc_life queue too. 
-Example using 1hour node with 4 GPUs:
+### SLURM Interactive (1 node, 4 GPUs)
 
 ```bash
-salloc -A bsc02 -t 01:00:00 -q acc_interactive -n 1 -c 80 --gres=gpu:4
+salloc -A $USER -t 01:00:00 -q $QUEUE -n 1 -c 80 --gres=gpu:4
 ```
 
-Or it is possible to run directly with sbatch, which will run the model in one node
+### SLURM Batch Job
+
+Submit a single-node job:
 
 ```bash
-sbatch -A bsc02 -t 00-01:00:00 -q acc_bscls run_single_nodes.sh --config config/qwen3_32B.yaml 
+sbatch -A $USER -t 01:00:00 -q $QUEUE run_scripts/run_single_nodes.sh \
+  --config config/mistral_small_24B-Instruct.yaml
 ```
 
+## Running the Launcher
 
-### Running the Script
-
-
-Basic usage with a configuration file:
+### With configuration file
 
 ```bash
-# Load appropriate modules and activate virtualenv
-module purge && module load mkl intel python/3.12
-# Important to avoid the virtual env using global packages
-unset PYTHONPATH
-source venv_mn5/bin/activate
-python ./vllm_server/run_vllm.py --config config.yaml
+python -m vllm_marenostrum.cli --config config/mistral_small_24B-Instruct.yaml
 ```
 
-Override specific configurations using CLI arguments:
+### With CLI overrides
 
 ```bash
-python ./vllm_server/run_vllm.py --config config.yaml --port 8081 --model-path /path/to/model
+python -m vllm_marenostrum.cli \
+  --config config/mistral_small_24B-Instruct.yaml \
+  --port 8081 \
+  --tensor-parallel-size 4
 ```
 
-Specify CUDA devices via CLI (overrides config file if set):
+### Set GPU devices manually
 
 ```bash
-python ./vllm_server/run_vllm.py  --cuda-devices 0,1 --config config.yaml
+python -m vllm_marenostrum.cli \
+  --config config/mistral_small_24B-Instruct.yaml \
+  --cuda-devices 0,1,2,3
 ```
-To run the model loading on several GPUs (should be automatic but sometimes need to be specified)
+
+## Remote Access (OpenAI-compatible)
+
+To connect to your running server from your laptop using the OpenAI API, establish an SSH tunnel.
+
+### Tunnel Script
 
 ```bash
-python ./vllm_server/run_vllm.py  --tensor-parallel-size 4 --config config.yaml
-```
-
-### YAML Configuration Format
-
-Your `config.yaml` file should look something like this:
-
-```yaml
-model_path: "/models"
-model_name: "my-model"
-port: 8000
-cuda_devices: "0,1"  # Optional
-other_vllm_arg: value
-```
-## Argument Precedence
-
-1. CLI arguments (highest priority).
-2. YAML configuration file.
-3. Default values in the script.
-
-
-
-## Connecting Remotely via OpenAI API
-
-If you want to connect to the models from your local machine using the OpenAI API, you can set up an SSH tunnel to the MareNostrum server.
-You need to get the target_host with is the ID of your running node.
-
-### Running the SSH Tunnel Script
-
-To create an SSH tunnel, run:
-
-```bash
-bash script/bsc_ssh_tunnel.sh <jump_host> <target_host> <ports>
+bash helpers_scripts/bsc_ssh_tunnel.sh <jump_host> <target_node> <ports>
 ```
 
 **Examples:**
 
-Forward a single port:
-
 ```bash
-bash ./scripts/bsc_ssh_tunnel.sh $USER@$alogin1.es as05r1b08 8000
+# Forward port 8000
+bash helpers_scripts/bsc_ssh_tunnel.sh $USER@$NODE $NODE_HOSTNAME 8000
 ```
 
-Forward multiple ports:
-
-```bash
-bash ./scripts/bsc_ssh_tunnel.sh $USER@$alogin1.es as05r1b08 8000,9000,10000
-```
-
-Forward a range of ports:
-
-```bash
-bash ./scripts/bsc_ssh_tunnel.sh mn5-acc-4 as05r1b08 8000-8005
-```
-
-Once the tunnel is established, you can interact with the vLLM models using the OpenAI API from your local machine.
-
-You can try with the following curl command to see if it works:
+### Test locally with curl
 
 ```bash
 curl http://localhost:8000/v1/completions \
-    -H "Content-Type: application/json" \
-    -d '{
-        "model": "/gpfs/project/bsc02/sla/llm_models/huggingface_models/$MODEL_NAME",
+  -H "Content-Type: application/json" \
+  -d '{
+        "model": "$MODEL_FOLDER/Mistral-Small-24B-Instruct-2501",
         "prompt": "Barcelona is a",
         "max_tokens": 7,
         "temperature": 0
-    }'
+      }'
 ```
 
 ## Logging
 
-The script logs configuration loading, argument processing, and execution details. Logs will be printed to the console by default.
+- Logs will appear in the SLURM `.out` and `.err` files when running via `sbatch`.
+- All major stages (config loading, CLI parsing, CUDA setup) are logged to `stdout`.
+
+## Developer Notes
+
+Project structure:
+
+```
+vllm-marenostrum/
+├── config/                      # YAML config files
+├── helpers_scripts/            # Tunneling, HF download scripts
+├── run_scripts/                # SLURM + Ray + Launcher scripts
+├── vllm_marenostrum/           # Main Python launcher package
+│   ├── cli.py
+│   ├── __init__.py
+│   └── vllm_launcher.py
+```
+
+Python entry point:
+
+```bash
+vllm-launch --config config/mistral_small_24B-Instruct.yaml
+```
+
+## Contributing
+
+This project helps run open-source LLMs like Mistral, LLaMA, and Qwen at scale using SLURM on BSC supercomputers. Issues and PRs are welcome.
+
+## License
+
+MIT
