@@ -1,6 +1,6 @@
 
 import argparse
-from .launcher import get_vllm_arguments, launch_vllm_server
+from .vllm_launcher import get_vllm_arguments, launch_vllm_server
 
 def main():
     parser = argparse.ArgumentParser(

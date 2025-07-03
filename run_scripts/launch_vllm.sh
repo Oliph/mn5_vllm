@@ -1,58 +1,34 @@
 #!/bin/bash
-## --------------------------------------------
-# Workload Launcher Script
-#
-# This script is designed to be called via `srun` from
-# `run_cluster.sh`. It performs the necessary environment
-# setup and runs the vLLM workload.
-#
+# --------------------------------------------
+# Workload Launcher Script (for SLURM SBATCH)
+# --------------------------------------------
 # Arguments:
-#   $1        → Tensor parallel size (from SLURM script)
-#   $2        -> pipeline_parallel_size (from SLURM script)
-#   $3...$@   → Additional command-line arguments passed
-#              from sbatch to the Python workload
-#
+#   $1        → tensor_parallel_size
+#   $2        → pipeline_parallel_size (optional, default=1)
+#   $3...$@   → Additional args passed to the launcher
 # --------------------------------------------
 
-echo "[VLLM] Starting workload launch script"
+echo "[VLLM] Starting vLLM launcher script..."
 
-# Check if tensor parallel size was passed
-#FIXME: should default to 1 if nothing is passed
-tensor_parallel_size=$1
-pipeline_parallel_size=$2
+# Read input args
+TP_SIZE=${1:-1}
+PIPELINE_SIZE=${2:-1}
+shift 2
 
-if [ -z "$tensor_parallel_size" ]; then
-  echo "[VLLM] Error: Missing tensor parallel size argument (expected as \$1)"
-  exit 1
-fi
-if [ -z "$pipeline_parallel_size" ]; then
-  echo "[VLLM] Error: Missing pipeline parallel size argument (expected as \$1)"
-  exit 1
-fi
-echo "[VLLM]] Changing to project directory: /gpfs/projects/bsc02/sla_projects/vllm_server"
+# Change to project root
 cd /gpfs/projects/bsc02/sla_projects/vllm_server || {
-  echo "[VLLM] Failed to cd into project directory"
+  echo "[VLLM] ERROR: Failed to change directory"
   exit 1
 }
 
-echo "[VLLM] Purging and loading modules (mkl, intel, python/3.12)"
+# Load modules and activate environment
 module purge && module load mkl intel python/3.12
-
-echo "[VLLM] PYTHONPATH BEFORE UNSETTING: $PYTHONPATH"
 unset PYTHONPATH
+source venv_mn5/bin/activate
 
-echo "[VLLM] Activating virtual environment: venv_mn5"
-source venv_mn5/bin/activate || {
-  echo "[VLLM] Failed to activate virtual environment"
-  exit 1
-}
+echo "[VLLM] Environment ready. Launching vllm_marenostrum..."
 
-echo "[VLLM] Launching vLLM server with:"
-echo "    --tensor-parallel-size: $tensor_parallel_size"
-echo "    --pipeline-parallel-size: $pipeline_parallel_size"
-echo "    Additional args: ${@:3}"
-
-python ./vllm_server/run_vllm.py \
-  --tensor-parallel-size "$tensor_parallel_size" \
-  --pipeline-parallel-size "$pipeline_parallel_size" \
-  "${@:3}"
+# Run the vLLM launcher (installed via pip)
+vllm-launch --tensor-parallel-size "$TP_SIZE" \
+  --pipeline-parallel-size "$PIPELINE_SIZE" \
+  "$@"
